@@ -287,6 +287,11 @@ type ErrorWithPayload struct {
 	Payload []byte
 }
 
+// Unwrap returns the underlying error, allowing errors.Is/errors.As to traverse the chain
+func (e ErrorWithPayload) Unwrap() error {
+	return e.error
+}
+
 // GetPayloadFromError returns the payload of a ErrorWithPayload
 func GetPayloadFromError(err error) []byte {
 	if err, ok := err.(ErrorWithPayload); ok {
