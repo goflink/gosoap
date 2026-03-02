@@ -122,7 +122,7 @@ func (tokens *tokenData) recursiveEncode(hm interface{}) {
 				name = v.Type().Field(i).Name
 				name = strings.ToLower(name[0:1]) + name[1:]
 			}
-			if v.IsZero() && shouldOmit {
+			if field.IsZero() && shouldOmit {
 				continue
 			}
 			if field.Kind() == reflect.Slice {
