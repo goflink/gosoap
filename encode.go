@@ -125,6 +125,17 @@ func (tokens *tokenData) recursiveEncode(hm interface{}) {
 			if v.IsZero() && shouldOmit {
 				continue
 			}
+			if field.Kind() == reflect.Slice {
+				for j := 0; j < field.Len(); j++ {
+					t := xml.StartElement{
+						Name: xml.Name{Space: "", Local: name},
+					}
+					tokens.data = append(tokens.data, t)
+					tokens.recursiveEncode(field.Index(j).Interface())
+					tokens.data = append(tokens.data, xml.EndElement{Name: t.Name})
+				}
+				continue
+			}
 			t := xml.StartElement{
 				Name: xml.Name{
 					Space: "",

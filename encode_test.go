@@ -1,6 +1,9 @@
 package gosoap
 
 import (
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -100,6 +103,103 @@ func TestClient_MarshalXML3(t *testing.T) {
 // 		}
 // 	}
 // }
+
+func TestRecursiveEncode_SliceFields(t *testing.T) {
+	type SubItem struct {
+		Name  string `xml:"name"`
+		Value string `xml:"value"`
+	}
+	type Request struct {
+		APIKey string    `xml:"apiKey"`
+		Items  []SubItem `xml:"item"`
+	}
+
+	tests := []struct {
+		name           string
+		params         SoapParams
+		mustContain    []string
+		mustNotContain []string
+	}{
+		{
+			name: "multiple items produce repeated elements",
+			params: Request{
+				APIKey: "test-key",
+				Items: []SubItem{
+					{Name: "first", Value: "1"},
+					{Name: "second", Value: "2"},
+				},
+			},
+			mustContain: []string{
+				"<item><name>first</name><value>1</value></item>",
+				"<item><name>second</name><value>2</value></item>",
+			},
+		},
+		{
+			name: "single item produces one element",
+			params: Request{
+				APIKey: "test-key",
+				Items:  []SubItem{{Name: "only", Value: "1"}},
+			},
+			mustContain: []string{
+				"<item><name>only</name><value>1</value></item>",
+				"<apiKey>test-key</apiKey>",
+			},
+		},
+		{
+			name: "empty slice produces no elements",
+			params: Request{
+				APIKey: "test-key",
+				Items:  []SubItem{},
+			},
+			mustContain:    []string{"<apiKey>test-key</apiKey>"},
+			mustNotContain: []string{"<item>"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := newTestServer()
+			defer ts.Close()
+
+			var capturedBody string
+			ts.soapHandler = func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				capturedBody = string(body)
+				w.Header().Set("Content-Type", "text/xml; charset=utf-8")
+				w.Write([]byte(`<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <checkVatResponse xmlns="http://test.example/">
+      <countryCode>IE</countryCode>
+    </checkVatResponse>
+  </soap:Body>
+</soap:Envelope>`))
+			}
+
+			soap, err := SoapClient(ts.wsdlURL, nil)
+			if err != nil {
+				t.Fatalf("error creating client: %s", err)
+			}
+
+			_, err = soap.Call("checkVat", tt.params)
+			if err != nil {
+				t.Fatalf("error in soap call: %s", err)
+			}
+
+			normalized := strings.Join(strings.Fields(capturedBody), "")
+			for _, s := range tt.mustContain {
+				if !strings.Contains(normalized, s) {
+					t.Errorf("expected body to contain %q, got:\n%s", s, capturedBody)
+				}
+			}
+			for _, s := range tt.mustNotContain {
+				if strings.Contains(normalized, s) {
+					t.Errorf("expected body NOT to contain %q, got:\n%s", s, capturedBody)
+				}
+			}
+		})
+	}
+}
 
 func TestSetCustomEnvelope(t *testing.T) {
 	SetCustomEnvelope("soapenv", map[string]string{
