@@ -113,6 +113,13 @@ func TestRecursiveEncode_SliceFields(t *testing.T) {
 		APIKey string    `xml:"apiKey"`
 		Items  []SubItem `xml:"item"`
 	}
+	type ArrayWrapper struct {
+		Items []SubItem `xml:"item"`
+	}
+	type ArrayRequest struct {
+		APIKey string       `xml:"apiKey"`
+		Data   ArrayWrapper `xml:"Data" soap:"array"`
+	}
 
 	tests := []struct {
 		name           string
@@ -153,6 +160,24 @@ func TestRecursiveEncode_SliceFields(t *testing.T) {
 			},
 			mustContain:    []string{"<apiKey>test-key</apiKey>"},
 			mustNotContain: []string{"<item>"},
+		},
+		{
+			name: "soap array tag adds SOAP-ENC:Array attribute",
+			params: ArrayRequest{
+				APIKey: "test-key",
+				Data: ArrayWrapper{
+					Items: []SubItem{
+						{Name: "first", Value: "1"},
+						{Name: "second", Value: "2"},
+					},
+				},
+			},
+			mustContain: []string{
+				`xsi:type="SOAP-ENC:Array"`,
+				`xmlns:SOAP-ENC`,
+				"<item><name>first</name><value>1</value></item>",
+				"<item><name>second</name><value>2</value></item>",
+			},
 		},
 	}
 
