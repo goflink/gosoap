@@ -122,14 +122,31 @@ func (tokens *tokenData) recursiveEncode(hm interface{}) {
 				name = v.Type().Field(i).Name
 				name = strings.ToLower(name[0:1]) + name[1:]
 			}
-			if v.IsZero() && shouldOmit {
+			if field.IsZero() && shouldOmit {
 				continue
 			}
+			if field.Kind() == reflect.Slice {
+				for j := 0; j < field.Len(); j++ {
+					t := xml.StartElement{
+						Name: xml.Name{Space: "", Local: name},
+					}
+					tokens.data = append(tokens.data, t)
+					tokens.recursiveEncode(field.Index(j).Interface())
+					tokens.data = append(tokens.data, xml.EndElement{Name: t.Name})
+				}
+				continue
+			}
+			soapTag := v.Type().Field(i).Tag.Get("soap")
 			t := xml.StartElement{
 				Name: xml.Name{
 					Space: "",
 					Local: name,
 				},
+			}
+			if soapTag == "array" {
+				t.Attr = []xml.Attr{
+					{Name: xml.Name{Space: "", Local: "xsi:type"}, Value: "SOAP-ENC:Array"},
+				}
 			}
 			tokens.data = append(tokens.data, t)
 			tokens.recursiveEncode(field.Interface())
@@ -151,6 +168,7 @@ func (tokens *tokenData) startEnvelope() {
 			{Name: xml.Name{Space: "", Local: "xmlns:xsi"}, Value: "http://www.w3.org/2001/XMLSchema-instance"},
 			{Name: xml.Name{Space: "", Local: "xmlns:xsd"}, Value: "http://www.w3.org/2001/XMLSchema"},
 			{Name: xml.Name{Space: "", Local: "xmlns:soap"}, Value: "http://schemas.xmlsoap.org/soap/envelope/"},
+			{Name: xml.Name{Space: "", Local: "xmlns:SOAP-ENC"}, Value: "http://schemas.xmlsoap.org/soap/encoding/"},
 		}
 	} else {
 		e.Attr = make([]xml.Attr, 0)
