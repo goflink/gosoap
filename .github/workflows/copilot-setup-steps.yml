@@ -1,0 +1,27 @@
+name: Copilot Setup Steps
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: [".github/workflows/copilot-setup-steps.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  copilot-setup-steps:
+    runs-on:
+      group: ubuntu-copilot-core
+    container:
+      image: europe-west3-docker.pkg.dev/flink-core-shared/copilot-container-images/golang:v1
+      options: --volume /home/runner:/home/runner --cap-add=NET_ADMIN --cap-add=NET_RAW
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Copilot Setup Go
+        uses: goflink/github-actions/copilot-setup-go@v2
+        with:
+          copilot-ssh-key: ${{ secrets.COPILOT_PRIVATE_SSH_KEY }}
